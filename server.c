@@ -76,16 +76,16 @@ void CheckPossibleGames(thread_info *tinfo, int currentPlayersNumer){
 				gtinfos[j].tinfo = tinfo;
 				gtinfos[j].playerOne = i;
 				gtinfos[j].playerTwo = j;
-					startGameThread(gtinfos[j]);
+					startGameThread(gtinfos, j);
 					printf("%d %d \n",i, j);
 			}
 }
 
-void startGameThread(game_thread_info gtinfo){
+void startGameThread(game_thread_info* gtinfos, int ind){
 
-	
+	printf(" SGT gra players: %d %d rozpoczeta\n", gtinfos[ind].playerOne, gtinfos[ind].playerTwo);
 	pthread_t t;
-	if (pthread_create(&t, NULL, GameThreadFunction, (void *)&gtinfo) != 0)
+	if (pthread_create(&t, NULL, GameThreadFunction, (void *)&gtinfos[ind]) != 0)
 		error("pthread_create");
 	
 
