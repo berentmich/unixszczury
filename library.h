@@ -59,14 +59,13 @@ typedef struct
 	char* name;
 	int* playedGames;
 	int isActive;
+	pthread_mutex_t *mutex;
 } player;
 
 typedef struct
 {
 	int id;
 	player* allPlayers;
-
-	pthread_mutex_t *playerMutex;
 
 } thread_info;
 
