@@ -69,22 +69,20 @@ void doWork(int socket, pthread_t *thread, thread_info *tinfo, int* currentPlaye
 void CheckPossibleGames(thread_info *tinfo, int currentPlayersNumer){
 	printf("currentplayers: %d\n", currentPlayersNumer);
 	int i, j;
-	int p1, p2;
 	 i = currentPlayersNumer - 1;
+	 game_thread_info gtinfos[i-1];
 		for(j = 0; j < i; j++){
-			p1 = i;
-			p2 = j;
-					startGameThread(tinfo, p1, p2);
+				
+				gtinfos[j].tinfo = tinfo;
+				gtinfos[j].playerOne = i;
+				gtinfos[j].playerTwo = j;
+					startGameThread(gtinfos[j]);
 					printf("%d %d \n",i, j);
 			}
 }
 
-void startGameThread(thread_info *tinfo, int playerOne, int playerTwo){
+void startGameThread(game_thread_info gtinfo){
 
-	game_thread_info gtinfo;
-	gtinfo.tinfo = tinfo;
-	gtinfo.playerOne = playerOne;
-	gtinfo.playerTwo = playerTwo;
 	
 	pthread_t t;
 	if (pthread_create(&t, NULL, GameThreadFunction, (void *)&gtinfo) != 0)
@@ -122,14 +120,14 @@ void *GameThreadFunction(void *arg){
 					//CheckWord();
 					if((size = TEMP_FAILURE_RETRY(recv(fdp1, buffer, NORMAL_MSG_SIZE, 0))) >= 0)
 						printf("%s\n", buffer);
-					
+					fflush(stdout);
 				}
 				
 				if(FD_ISSET(fdp2, &rfds)){
 					//CheckWord();
 					if((size = TEMP_FAILURE_RETRY(recv(fdp2, buffer, NORMAL_MSG_SIZE, 0))) >= 0)
 						printf("%s\n", buffer);
-					
+					fflush(stdout);
 				}
 
 		}
