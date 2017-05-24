@@ -62,7 +62,6 @@ void doWork(int socket, pthread_t *thread, thread_info *tinfo, int* currentPlaye
 			if (EINTR == errno) continue;
 			error("pselect");
 		}
-		sleep(1);
 		CheckPossibleGames(tinfo, *currentPlayersNumber);
 		
 	}
