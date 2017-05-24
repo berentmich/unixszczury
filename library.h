@@ -33,6 +33,8 @@
 #define MAX_PLAYERS 20
 #define MAX_THREAD 20
 #define NORMAL_MSG_SIZE 50
+#define GAME_LENGTH 3
+#define FILE_LENGTH 20
 int sethandler(int sigNo, void (*handler)(int));
 void sigchildhandler(int sigNo);
 void error(const char* reason);

@@ -1,6 +1,7 @@
 #include "server.h"
 
 volatile sig_atomic_t stop = 0;
+static const char filename[] = "./slowa";
 
 int main(int argc, char** argv)
 {
@@ -15,6 +16,7 @@ int main(int argc, char** argv)
 	thread_info tinfo[MAX_PLAYERS];
 	int currentPlayersNumber =0;
 	player players[MAX_PLAYERS];
+	srand(14334);
 	socket = bind_inet_socket(atoi(argv[1]), SOCK_STREAM);
 	init(player_threads, tinfo, playerMutexes, players);
 	doWork(socket, player_threads, tinfo, &currentPlayersNumber);
@@ -90,8 +92,6 @@ void startGameThread(game_thread_info* gtinfos, int ind){
 }
 
 void *GameThreadFunction(void *arg){
-
-
 		game_thread_info gtinfo;
 		memcpy(&gtinfo, arg, sizeof(gtinfo));
 
@@ -101,79 +101,119 @@ void *GameThreadFunction(void *arg){
 		char buffer[NORMAL_MSG_SIZE];
 		char sendBuffer[NORMAL_MSG_SIZE];
 		char slowo[NORMAL_MSG_SIZE];
+		int word_numbers[GAME_LENGTH];
 		int fdp1 = tinfo->allPlayers[gtinfo.playerOne].fd;
 		int fdp2 = tinfo->allPlayers[gtinfo.playerTwo].fd;
+		int currSlowo = 0, nextSlowo = 0, p1score =0, p2score =0;
+		WaitForPlayers(tinfo->allPlayers[gtinfo.playerOne].mutex, tinfo->allPlayers[gtinfo.playerTwo].mutex);
 		
-		while(1){
-			if (pthread_mutex_lock(tinfo->allPlayers[gtinfo.playerOne].mutex) != 0)
-				error("pthread_mutex_lock");
-			if (pthread_mutex_trylock(tinfo->allPlayers[gtinfo.playerTwo].mutex) == EBUSY){
-				pthread_mutex_unlock(tinfo->allPlayers[gtinfo.playerOne].mutex);
-			}
-			else{
-				break;
-			}
-		}
 		printf("gra players: %d %d rozpoczeta\n", gtinfo.playerOne, gtinfo.playerTwo);
+		GetRandomNumbers(word_numbers);
+		
 		FD_ZERO(&rfds);
 		FD_SET(fdp1, &rfds);
 		FD_SET(fdp2, &rfds);
-		
+		printf("dziala %d\n", word_numbers[currSlowo]);
+		GetWord(slowo, word_numbers[currSlowo]);
 		sendWordToPlayer(fdp1, "Gra rozpoczeta\n");
 		sendWordToPlayer(fdp2, "Gra rozpoczeta\n");
+		sendWordToPlayer(fdp1,slowo);
+		sendWordToPlayer(fdp2,slowo);
 		int maxFd = fdp2 > fdp1 ? fdp2 : fdp1;
 		
 		while(1){
-			/**/memset(&buffer[0], 0, sizeof(buffer));
-			memset(&slowo[0], 0, sizeof(slowo));
-			snprintf(slowo, NORMAL_MSG_SIZE, "sloweczko\n");
-			int rv= select(maxFd + 1, &rfds, NULL, NULL, NULL);
-			
-			if(rv > 0){
-				printf("max%d fd2 %d fd1 %d\n", maxFd, fdp2, fdp1);	
-				if(FD_ISSET(fdp1, &rfds)){
-					//CheckWord();
-					if((size = TEMP_FAILURE_RETRY(recv(fdp1, buffer, NORMAL_MSG_SIZE, 0))) >= 0){
-						/**/printf("buffer %s \n", buffer);
-						printf("slowo %s \n", slowo);
-						printf("roznica %d \n", strcmp(buffer, slowo));
-						printf("halko\n");
-						if(strcmp(buffer, slowo) == 0){
-							printf("wygral");
-							break;
-						}
-							
-					}
-
+			if(currSlowo < GAME_LENGTH){
+				if(nextSlowo){
+					
+					GetWord(slowo, word_numbers[currSlowo]);
+					sendWordToPlayer(fdp1,slowo);
+					sendWordToPlayer(fdp2,slowo);
 				}
+				int rv= select(maxFd + 1, &rfds, NULL, NULL, NULL);		
+				if(rv > 0){
+					if(FD_ISSET(fdp1, &rfds)){
+						//CheckWord();
+						if((size = TEMP_FAILURE_RETRY(recv(fdp1, buffer, NORMAL_MSG_SIZE, 0))) >= 0){
+
+							if(nextSlowo = CheckWord(slowo, buffer)){
+									p1score++;
+									currSlowo++;
+									sendWordToPlayer(fdp1, "+1\n");
+							}
+						}
+
+					}
 				
-				if(FD_ISSET(fdp2, &rfds)){
-					//CheckWord();
-					if((size = TEMP_FAILURE_RETRY(recv(fdp2, buffer, NORMAL_MSG_SIZE, 0))) >= 0){
-						printf("halko\n");
-						printf("buffer %s \n", buffer);
-						printf("slowo %s \n", slowo);
-						printf("roznica %d \n", strcmp(buffer, slowo));
-						printf("halko\n");
-						if(strcmp(buffer, slowo) == 0){
-							printf("wygral");
+					if(FD_ISSET(fdp2, &rfds)){
+						//CheckWord();
+						if((size = TEMP_FAILURE_RETRY(recv(fdp2, buffer, NORMAL_MSG_SIZE, 0))) >= 0){
 
-							break;
+							if(nextSlowo = CheckWord(slowo, buffer)){
+									p2score++;
+									currSlowo++;
+									sendWordToPlayer(fdp2, "+1\n");
+							}						
 						}
-							
-					}
 
-				}
+					}
 			
-			}
+				}
 				FD_SET(fdp1, &rfds);
 				FD_SET(fdp2, &rfds);
+			}
+			else
+				break;
 		}
-		sendWordToPlayer(fdp1, "Gra koniec\n");
-		sendWordToPlayer(fdp2, "Gra koniec\n");
+		if(p1score > p2score){
+			sendWordToPlayer(fdp1, "Wygrales\n");
+			sendWordToPlayer(fdp2, "Przegrales\n");
+			tinfo->allPlayers[gtinfo.playerOne].playedGames[gtinfo.playerTwo] = 1;
+			tinfo->allPlayers[gtinfo.playerTwo].playedGames[gtinfo.playerOne] = 0;
+		}
+		else{
+			sendWordToPlayer(fdp1, "Przegrales\n");
+			sendWordToPlayer(fdp2, "Wygrales\n");
+			tinfo->allPlayers[gtinfo.playerOne].playedGames[gtinfo.playerTwo] = 0;
+			tinfo->allPlayers[gtinfo.playerTwo].playedGames[gtinfo.playerOne] = 1;
+		}
+
 		pthread_mutex_unlock(tinfo->allPlayers[gtinfo.playerOne].mutex);
 		pthread_mutex_unlock(tinfo->allPlayers[gtinfo.playerTwo].mutex);
 
+}
+void GetRandomNumbers(int* numbers){
+	int i, r;
+	for(i=0; i< GAME_LENGTH; i++){
+		r = rand() % FILE_LENGTH;
+		numbers[i] = r;
+
+	}
+
+}
+void GetWord(char* slowo, int lineNumber){
+	memset(&slowo[0], 0, sizeof(slowo));
+	FILE *file = fopen(filename, "r");
+	int count = 0;
+	if ( file != NULL ){
+		char line[20];
+		while (fgets(line, sizeof line, file) != NULL) 
+		{
+			if (count == lineNumber)
+			{
+				strcpy(slowo, line);
+				break;
+			}
+			else
+			{
+				count++;
+			}
+		}
+		fclose(file);
+	}
+	else
+	{
+		error("File erorr");
+	}
 }
 
 void startPlayerThread(int fd, pthread_t *thread, thread_info *tinfo, int* currentThreadNumber) {
@@ -252,4 +292,23 @@ void sendWordToPlayer(int fd, const char* msg) {
 	snprintf(message, NORMAL_MSG_SIZE, msg);
 	if (TEMP_FAILURE_RETRY(send(fd, message, NORMAL_MSG_SIZE, 0)) < 0)
 		error("send");
+}
+void WaitForPlayers(pthread_mutex_t *m1, pthread_mutex_t *m2){
+		while(1){
+			if (pthread_mutex_lock(m1) != 0)
+				error("pthread_mutex_lock");
+			if (pthread_mutex_trylock(m2) == EBUSY){
+				pthread_mutex_unlock(m1);
+			}
+			else{
+				break;
+			}
+		}
+}
+
+int CheckWord(char* slowo, char* odpowiedz){
+	if(strncmp(odpowiedz, slowo, strlen(slowo)-1) == 0){
+		return 1;
+	}
+	return 0;
 }

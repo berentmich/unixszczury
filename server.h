@@ -12,3 +12,4 @@ void startPlayerThread(int fd, pthread_t *thread, thread_info *tinfo, int* curre
 void init(pthread_t *thread, thread_info *tinfo, pthread_mutex_t *playerMutexes, player *players);
 void *playerThreadFunction(void *arg);
 void sendWordToPlayer(int fd, const char* msg);
+void GetRandomNumbers(int* numbers);
