@@ -61,6 +61,7 @@ typedef struct
 	char* name;
 	int* playedGames;
 	int isActive;
+	int isPlaying;
 	pthread_mutex_t *mutex;
 } player;
 

@@ -74,12 +74,13 @@ void CheckPossibleGames(thread_info *tinfo, int currentPlayersNumer){
 	 i = currentPlayersNumer - 1;
 	 game_thread_info gtinfos[i-1];
 		for(j = 0; j < i; j++){
-				
-				gtinfos[j].tinfo = tinfo;
-				gtinfos[j].playerOne = i;
-				gtinfos[j].playerTwo = j;
+			printf("player %d is %d\n", j,tinfo->allPlayers[j].isActive );
+				if(tinfo->allPlayers[j].isActive != -1){
+					gtinfos[j].tinfo = tinfo;
+					gtinfos[j].playerOne = i;
+					gtinfos[j].playerTwo = j;
 					startGameThread(gtinfos, j);
-					printf("%d %d \n",i, j);
+				}
 			}
 }
 
@@ -100,44 +101,67 @@ void *GameThreadFunction(void *arg){
 		size_t size;
 		char buffer[NORMAL_MSG_SIZE];
 		char sendBuffer[NORMAL_MSG_SIZE];
-		char slowo[NORMAL_MSG_SIZE];
+		char slowo1[NORMAL_MSG_SIZE];
+		char slowo2[NORMAL_MSG_SIZE];
 		int word_numbers[GAME_LENGTH];
 		int fdp1 = tinfo->allPlayers[gtinfo.playerOne].fd;
 		int fdp2 = tinfo->allPlayers[gtinfo.playerTwo].fd;
-		int currSlowo = 0, nextSlowo = 0, p1score =0, p2score =0;
+		int currSlowo1 = 0, nextSlowo1 = 0,currSlowo2 = 0, nextSlowo2 = 0, p1score =0, p2score =0;
 		WaitForPlayers(tinfo->allPlayers[gtinfo.playerOne].mutex, tinfo->allPlayers[gtinfo.playerTwo].mutex);
-		
+		if(tinfo->allPlayers[gtinfo.playerOne].isActive == -1 || tinfo->allPlayers[gtinfo.playerTwo].isActive == -1){
+			
+			pthread_mutex_unlock(tinfo->allPlayers[gtinfo.playerOne].mutex);
+			pthread_mutex_unlock(tinfo->allPlayers[gtinfo.playerTwo].mutex);
+			return;
+		}
+			
+		tinfo->allPlayers[gtinfo.playerOne].isPlaying = 1;
+		tinfo->allPlayers[gtinfo.playerTwo].isPlaying = 1;
 		printf("gra players: %d %d rozpoczeta\n", gtinfo.playerOne, gtinfo.playerTwo);
 		GetRandomNumbers(word_numbers);
 		
 		FD_ZERO(&rfds);
 		FD_SET(fdp1, &rfds);
 		FD_SET(fdp2, &rfds);
-		printf("dziala %d\n", word_numbers[currSlowo]);
-		GetWord(slowo, word_numbers[currSlowo]);
+		GetWord(slowo1, word_numbers[currSlowo1]);
+		GetWord(slowo2, word_numbers[currSlowo2]);
 		sendWordToPlayer(fdp1, "Gra rozpoczeta\n");
 		sendWordToPlayer(fdp2, "Gra rozpoczeta\n");
-		sendWordToPlayer(fdp1,slowo);
-		sendWordToPlayer(fdp2,slowo);
+		sendWordToPlayer(fdp1,slowo1);
+		sendWordToPlayer(fdp2,slowo2);
 		int maxFd = fdp2 > fdp1 ? fdp2 : fdp1;
 		
 		while(1){
-			if(currSlowo < GAME_LENGTH){
-				if(nextSlowo){
-					
-					GetWord(slowo, word_numbers[currSlowo]);
-					sendWordToPlayer(fdp1,slowo);
-					sendWordToPlayer(fdp2,slowo);
+			if(currSlowo1 < GAME_LENGTH && currSlowo2 <GAME_LENGTH){
+				if(nextSlowo1){
+					GetWord(slowo1, word_numbers[currSlowo1]);
+					sendWordToPlayer(fdp1,slowo1);
+					nextSlowo1 = 0;
+				}
+				if(nextSlowo2){
+					GetWord(slowo2, word_numbers[currSlowo2]);
+					sendWordToPlayer(fdp2,slowo2);
+					nextSlowo2 = 0;
 				}
 				int rv= select(maxFd + 1, &rfds, NULL, NULL, NULL);		
+				memset(&buffer[0], 0, sizeof(buffer));
+
 				if(rv > 0){
 					if(FD_ISSET(fdp1, &rfds)){
 						//CheckWord();
 						if((size = TEMP_FAILURE_RETRY(recv(fdp1, buffer, NORMAL_MSG_SIZE, 0))) >= 0){
+													
+							if(strlen(buffer) == 0){
+								if(PlayerDisconnected(tinfo->allPlayers, gtinfo.playerOne)){
+									p1score = -1;
 
-							if(nextSlowo = CheckWord(slowo, buffer)){
+								}
+								break;
+							}
+								
+							if(nextSlowo1 = CheckWord(slowo1, buffer)){
 									p1score++;
-									currSlowo++;
+									currSlowo1++;
 									sendWordToPlayer(fdp1, "+1\n");
 							}
 						}
@@ -147,10 +171,15 @@ void *GameThreadFunction(void *arg){
 					if(FD_ISSET(fdp2, &rfds)){
 						//CheckWord();
 						if((size = TEMP_FAILURE_RETRY(recv(fdp2, buffer, NORMAL_MSG_SIZE, 0))) >= 0){
-
-							if(nextSlowo = CheckWord(slowo, buffer)){
+							if(strlen(buffer) ==0){
+								if(PlayerDisconnected(tinfo->allPlayers, gtinfo.playerTwo)){
+									p2score = -1;
+								}
+								break;
+							}
+							if(nextSlowo2 = CheckWord(slowo2, buffer)){
 									p2score++;
-									currSlowo++;
+									currSlowo2++;
 									sendWordToPlayer(fdp2, "+1\n");
 							}						
 						}
@@ -176,9 +205,12 @@ void *GameThreadFunction(void *arg){
 			tinfo->allPlayers[gtinfo.playerOne].playedGames[gtinfo.playerTwo] = 0;
 			tinfo->allPlayers[gtinfo.playerTwo].playedGames[gtinfo.playerOne] = 1;
 		}
+		tinfo->allPlayers[gtinfo.playerOne].isPlaying = 0;
+		tinfo->allPlayers[gtinfo.playerTwo].isPlaying = 0;
 
 		pthread_mutex_unlock(tinfo->allPlayers[gtinfo.playerOne].mutex);
 		pthread_mutex_unlock(tinfo->allPlayers[gtinfo.playerTwo].mutex);
+
 
 }
 void GetRandomNumbers(int* numbers){
@@ -221,6 +253,8 @@ void startPlayerThread(int fd, pthread_t *thread, thread_info *tinfo, int* curre
 		if (tinfo -> allPlayers[i].id == -1) {
 			tinfo -> allPlayers[i].id = i;
 			tinfo -> allPlayers[i].fd = fd;
+			tinfo -> allPlayers[i].isActive = 1;
+
 			tinfo -> allPlayers[i].playedGames = (int*)malloc(MAX_PLAYERS * sizeof(int));
 			for(int j = 0; j<MAX_PLAYERS; j++){
 				
@@ -241,6 +275,7 @@ void init(pthread_t *thread, thread_info *tinfo, pthread_mutex_t *playerMutexes,
 	for (i = 0; i < MAX_PLAYERS; i++) {
 		players[i].id = -1;
 		players[i].fd = -1;
+		players[i].isPlaying = 0;
 		pthread_mutex_init(&playerMutexes[i], NULL);
 		players[i].mutex  = &playerMutexes[i];
 	}
@@ -254,21 +289,27 @@ void init(pthread_t *thread, thread_info *tinfo, pthread_mutex_t *playerMutexes,
 void *playerThreadFunction(void *arg) {
 	
 	thread_info tinfo;
-	int nameAvailable;
+	int nameAvailable, fd;
 	memcpy(&tinfo, arg, sizeof(tinfo));
-
+	fd = tinfo.allPlayers[tinfo.id].fd;
 	fd_set rfds;
+	size_t size;
+	char buffer[NORMAL_MSG_SIZE];
 	while (!stop) {//rejestracja
 		FD_ZERO(&rfds);
-		FD_SET(tinfo.allPlayers[tinfo.id].fd, &rfds);
-		int rv= select(tinfo.allPlayers[tinfo.id].fd + 1, &rfds, NULL, NULL, NULL);
-
-		if (rv  > 0) { // socket has something to read
-			nameAvailable = 1;//IsNameAvailable(tinfo);
-			if(nameAvailable)
-				break;
-			else
-				continue;
+		FD_SET(fd, &rfds);
+		int rv= select(fd + 1, &rfds, NULL, NULL, NULL);
+		if (rv  > 0 ) { 
+			if(!(tinfo.allPlayers[tinfo.id].isPlaying)){
+				memset(&buffer[0], 0, sizeof(buffer));
+				if((size = TEMP_FAILURE_RETRY(recv(fd, buffer, NORMAL_MSG_SIZE, 0))) >= 0){
+					if(strlen(buffer) == 0 || tinfo.allPlayers[tinfo.id].isActive ==-1){
+						PlayerDisconnected(tinfo.allPlayers,tinfo.id);
+						break;
+					}
+			}		
+				}
+			
 		} else if(rv == 0) {
 
 		} else {
@@ -311,4 +352,11 @@ int CheckWord(char* slowo, char* odpowiedz){
 		return 1;
 	}
 	return 0;
+}
+int PlayerDisconnected(player* plr, int ind){
+
+	plr[ind].isActive = -1;
+
+	printf("player %d disconected hisActive %d\n", plr[ind].id, plr[ind].isActive );
+	return plr[ind].isPlaying;
 }
