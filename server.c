@@ -111,6 +111,7 @@ void *GameThreadFunction(void *arg){
 			
 			pthread_mutex_unlock(tinfo->allPlayers[gtinfo.playerOne].mutex);
 			pthread_mutex_unlock(tinfo->allPlayers[gtinfo.playerTwo].mutex);
+
 			return;
 		}
 			
@@ -206,7 +207,8 @@ void *GameThreadFunction(void *arg){
 		}
 		tinfo->allPlayers[gtinfo.playerOne].isPlaying = 0;
 		tinfo->allPlayers[gtinfo.playerTwo].isPlaying = 0;
-
+		if(CheckIfAllGamesPlayed(tinfo->allPlayers))
+			SendRankingToAll(tinfo->allPlayers);
 		pthread_mutex_unlock(tinfo->allPlayers[gtinfo.playerOne].mutex);
 		pthread_mutex_unlock(tinfo->allPlayers[gtinfo.playerTwo].mutex);
 
@@ -253,23 +255,17 @@ void startPlayerThread(int fd, pthread_t *thread, thread_info *tinfo, int* curre
 			tinfo -> allPlayers[i].id = i;
 			tinfo -> allPlayers[i].fd = fd;
 			tinfo -> allPlayers[i].isActive = 1;
-
-			tinfo -> allPlayers[i].playedGames = (int*)malloc(MAX_PLAYERS * sizeof(int));
-			for(int j = 0; j<MAX_PLAYERS; j++){
-				
-				tinfo->allPlayers[i].playedGames[j] = -1;
-			}
-				
+			(*currentThreadNumber)++;
 			if (pthread_create(&thread[i], NULL, playerThreadFunction, (void *)&tinfo[i]) != 0)
 				error("pthread_create");
-			(*currentThreadNumber)++;
+			
 			break;
 		}
 	}
 }
 
 void init(pthread_t *thread, thread_info *tinfo, pthread_mutex_t *playerMutexes, player *players) {
-	int i;
+	int i,j;
 
 	for (i = 0; i < MAX_PLAYERS; i++) {
 		players[i].id = -1;
@@ -277,6 +273,10 @@ void init(pthread_t *thread, thread_info *tinfo, pthread_mutex_t *playerMutexes,
 		players[i].isPlaying = 0;
 		pthread_mutex_init(&playerMutexes[i], NULL);
 		players[i].mutex  = &playerMutexes[i];
+		players[i].playedGames = (int*)malloc(MAX_PLAYERS * sizeof(int));
+		for(int j = 0; j<MAX_PLAYERS; j++){
+			players[i].playedGames[j] = -1;
+		}
 	}
 	for (i = 0; i < MAX_PLAYERS; i++) {
 		tinfo[i].id = i;
@@ -353,9 +353,53 @@ int CheckWord(char* slowo, char* odpowiedz){
 	return 0;
 }
 int PlayerDisconnected(player* plr, int ind){
-
+	int i;
 	plr[ind].isActive = -1;
-
-	printf("player %d disconected hisActive %d\n", plr[ind].id, plr[ind].isActive );
+	for(i = 0; i< MAX_PLAYERS; i++)
+		if(plr[i].playedGames[ind] == -1)
+			plr[i].playedGames[ind] = 0;
+	printf("player %d disconected\n", plr[ind].id );
 	return plr[ind].isPlaying;
+}
+
+void SendRankingToPlayer(int ind, player* players){
+	int i,j,  score;
+	char msg[NORMAL_MSG_SIZE];
+	
+	for( i = 0 ; players[i].id != -1; i++){
+		if(players[i].isActive != -1){
+			score = 0;
+			for(j=0; players[j].id != -1; j++)	
+				if(i != j)
+					score += players[i].playedGames[j];
+				
+			
+			memset(&msg[0], 0, sizeof(msg));
+			snprintf(msg, NORMAL_MSG_SIZE, "Player %d   %d\n", i, score);
+			if (TEMP_FAILURE_RETRY(send(players[ind].fd, msg, NORMAL_MSG_SIZE, 0)) < 0)
+				error("send");
+		}
+	}
+}
+
+void SendRankingToAll(player* players){
+	int i;
+	for( i = 0 ; players[i].id != -1; i++){
+		if(players[i].isActive != -1){
+			SendRankingToPlayer(i, players);
+		}
+	}
+}
+
+int CheckIfAllGamesPlayed(player* players){
+	int i,j, ret = 1;
+	
+	for( i = 0 ; players[i].id != -1; i++){
+		if(players[i].isActive != -1)
+			for(j=0; j < i; j++)
+				if(players[i].playedGames[j] == -1){
+					printf("nieready pl%d, %d %d = %d\n", i, i,j, players[i].playedGames[j]);
+					return 0;
+	}			}
+	return ret;
 }
