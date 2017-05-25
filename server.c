@@ -30,7 +30,7 @@ int main(int argc, char** argv)
 		clean(players[i].mutex);
 	}
 	if (TEMP_FAILURE_RETRY(close(socket)) < 0)
-		error("close");/**/
+		error("close");
 	fprintf(stderr, "Koniec servera\n");
     return EXIT_SUCCESS;
 }
@@ -161,7 +161,7 @@ void *GameThreadFunction(void *arg){
 								break;
 							}
 								
-							if(nextSlowo1 = CheckWord(slowo1, buffer)){
+							if((nextSlowo1 = CheckWord(slowo1, buffer)) == 1){
 									p1score++;
 									currSlowo1++;
 									sendWordToPlayer(fdp1, "+1\n");
@@ -178,7 +178,7 @@ void *GameThreadFunction(void *arg){
 								}
 								break;
 							}
-							if(nextSlowo2 = CheckWord(slowo2, buffer)){
+							if((nextSlowo2 = CheckWord(slowo2, buffer)) == 1){
 									p2score++;
 									currSlowo2++;
 									sendWordToPlayer(fdp2, "+1\n");
@@ -298,7 +298,7 @@ void *playerThreadFunction(void *arg) {
 	size_t size;
 	char buffer[NORMAL_MSG_SIZE];
 	struct timeval tv;
-	tv.tv_sec = 5;
+	tv.tv_sec = 3;
     tv.tv_usec = 0;	
 	while (!stop) {
 		FD_ZERO(&rfds);
@@ -321,7 +321,7 @@ void *playerThreadFunction(void *arg) {
 			if (EINTR == errno) continue;
 			error("pselect");
 		}
-		tv.tv_sec = 5;
+		tv.tv_sec = 3;
 		tv.tv_usec = 0;	
 	}
 	
@@ -372,7 +372,7 @@ int PlayerDisconnected(player* plr, int ind){
 	for(i = 0; i< MAX_PLAYERS; i++)
 		if(plr[i].playedGames[ind] == NOT_PLAYED)
 			plr[i].playedGames[ind] = 0;
-	printf("player %d disconected\n", plr[ind].id );
+	fprintf(stderr,"player %d disconected\n", plr[ind].id );
 	return plr[ind].isPlaying;
 }
 

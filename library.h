@@ -38,6 +38,7 @@
 #define PLAYER_INACTIVE -1
 #define NOT_PLAYED -1
 
+void error(const char* reason);
 int sethandler(int sigNo, void (*handler)(int));
 void sigchildhandler(int sigNo);
 int bind_inet_socket(uint16_t port,int type);
