@@ -151,7 +151,6 @@ void *GameThreadFunction(void *arg){
 
 				if(rv > 0){
 					if(FD_ISSET(fdp1, &rfds)){
-						//CheckWord();
 						if((size = TEMP_FAILURE_RETRY(recv(fdp1, buffer, NORMAL_MSG_SIZE, 0))) >= 0){
 													
 							if(strlen(buffer) == 0){
@@ -172,7 +171,6 @@ void *GameThreadFunction(void *arg){
 					}
 				
 					if(FD_ISSET(fdp2, &rfds)){
-						//CheckWord();
 						if((size = TEMP_FAILURE_RETRY(recv(fdp2, buffer, NORMAL_MSG_SIZE, 0))) >= 0){
 							if(strlen(buffer) ==0){
 								if(PlayerDisconnected(tinfo->allPlayers, gtinfo.playerTwo)){
@@ -299,10 +297,13 @@ void *playerThreadFunction(void *arg) {
 	fd_set rfds;
 	size_t size;
 	char buffer[NORMAL_MSG_SIZE];
+	struct timeval tv;
+	tv.tv_sec = 5;
+    tv.tv_usec = 0;	
 	while (!stop) {
 		FD_ZERO(&rfds);
 		FD_SET(fd, &rfds);
-		int rv= select(fd + 1, &rfds, NULL, NULL, NULL);
+		int rv= select(fd + 1, &rfds, NULL, NULL, &tv);
 		if (rv  > 0 ) { 
 			if(!(tinfo.allPlayers[tinfo.id].isPlaying)){
 				memset(&buffer[0], 0, sizeof(buffer));
@@ -320,6 +321,8 @@ void *playerThreadFunction(void *arg) {
 			if (EINTR == errno) continue;
 			error("pselect");
 		}
+		tv.tv_sec = 5;
+		tv.tv_usec = 0;	
 	}
 	
 	return NULL;
@@ -327,6 +330,12 @@ void *playerThreadFunction(void *arg) {
 
 
 void clean(pthread_mutex_t *mutex) {
+	if (pthread_mutex_trylock(mutex) == EBUSY){
+			pthread_mutex_unlock(mutex);
+	}
+	else{
+		pthread_mutex_unlock(mutex);
+	}	
 	if (pthread_mutex_destroy(mutex) != 0)
 		error("pthread_mutex_destroy");
 }
