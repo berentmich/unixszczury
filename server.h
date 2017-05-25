@@ -13,3 +13,11 @@ void init(pthread_t *thread, thread_info *tinfo, pthread_mutex_t *playerMutexes,
 void *playerThreadFunction(void *arg);
 void sendWordToPlayer(int fd, const char* msg);
 void GetRandomNumbers(int* numbers);
+int CheckWord(char* slowo, char* odpowiedz);
+int PlayerDisconnected(player* plr, int ind);
+void SendRankingToPlayer(int ind, player* players);
+void SendRankingToAll(player* players);
+int CheckIfAllGamesPlayed(player* players);
+void WaitForPlayers(pthread_mutex_t *m1, pthread_mutex_t *m2);
+void GetWord(char* slowo, int lineNumber);
+void clean(pthread_mutex_t *mutex);

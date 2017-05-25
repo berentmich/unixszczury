@@ -35,20 +35,11 @@
 #define NORMAL_MSG_SIZE 50
 #define GAME_LENGTH 3
 #define FILE_LENGTH 20
+#define PLAYER_INACTIVE -1
+#define NOT_PLAYED -1
+
 int sethandler(int sigNo, void (*handler)(int));
 void sigchildhandler(int sigNo);
-void error(const char* reason);
-ssize_t saferead(int fd, char* buf, size_t count);
-ssize_t safewrite(int fd, char* buf, size_t count);
-int setWriteLock(int fd, int start, int length, struct flock* lock);
-int releaseWriteLock(int fd, struct flock* lock);
-int openFile(const char* path, int* fd, int flags, mode_t mode);
-int closeFile(int fd);
-int safemalloc(char** buf, int length);
-int createPipe(int* readfd, int* writefd);
-int readFromFifo(int fifo, char* buf, int size);
-int writeToFifo(int fifo, char* buf, int size);
-off_t fileSize(int fd);
 int bind_inet_socket(uint16_t port,int type);
 int make_socket(int domain, int type);
 int addClient(int sfd);
