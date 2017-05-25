@@ -31,10 +31,15 @@ int main(int argc, char** argv)
 	}
 	if (TEMP_FAILURE_RETRY(close(socket)) < 0)
 		error("close");
+	clean_structures(players);
 	fprintf(stderr, "Koniec servera\n");
     return EXIT_SUCCESS;
 }
-
+void clean_structures(player* players){
+	for(int i =0; i < MAX_PLAYERS; i++){
+		free(players[i].playedGames); 
+	}
+}
 void usage() {
 	fprintf(stderr,"USAGE: Program needs port\n");
 }
@@ -194,33 +199,47 @@ void *GameThreadFunction(void *arg){
 			else
 				break;
 		}
+		EndGame(p1score, p2score, gtinfo.playerOne, gtinfo.playerTwo, tinfo);
+
+	pthread_exit(EXIT_SUCCESS);
+}
+
+void EndGame(int p1score, int p2score, int playerOne, int playerTwo, thread_info* tinfo ){
+  		int fdp1 = tinfo->allPlayers[playerOne].fd;
+		int fdp2 = tinfo->allPlayers[playerTwo].fd;
 		if(p1score > p2score){
 			sendWordToPlayer(fdp1, "Wygrales\n");
 			sendWordToPlayer(fdp2, "Przegrales\n");
-			tinfo->allPlayers[gtinfo.playerOne].playedGames[gtinfo.playerTwo] = 1;
-			tinfo->allPlayers[gtinfo.playerTwo].playedGames[gtinfo.playerOne] = 0;
+			tinfo->allPlayers[playerOne].playedGames[playerTwo] = 1;
+			tinfo->allPlayers[playerTwo].playedGames[playerOne] = 0;
 		}
 		else{
 			sendWordToPlayer(fdp1, "Przegrales\n");
 			sendWordToPlayer(fdp2, "Wygrales\n");
-			tinfo->allPlayers[gtinfo.playerOne].playedGames[gtinfo.playerTwo] = 0;
-			tinfo->allPlayers[gtinfo.playerTwo].playedGames[gtinfo.playerOne] = 1;
+			tinfo->allPlayers[playerOne].playedGames[playerTwo] = 0;
+			tinfo->allPlayers[playerTwo].playedGames[playerOne] = 1;
 		}
-		tinfo->allPlayers[gtinfo.playerOne].isPlaying = 0;
-		tinfo->allPlayers[gtinfo.playerTwo].isPlaying = 0;
+		tinfo->allPlayers[playerOne].isPlaying = 0;
+		tinfo->allPlayers[playerTwo].isPlaying = 0;
 		if(CheckIfAllGamesPlayed(tinfo->allPlayers))
 			SendRankingToAll(tinfo->allPlayers);
-		pthread_mutex_unlock(tinfo->allPlayers[gtinfo.playerOne].mutex);
-		pthread_mutex_unlock(tinfo->allPlayers[gtinfo.playerTwo].mutex);
-
-	pthread_exit(EXIT_SUCCESS);
+		pthread_mutex_unlock(tinfo->allPlayers[playerOne].mutex);
+		pthread_mutex_unlock(tinfo->allPlayers[playerTwo].mutex);
 }
 void GetRandomNumbers(int* numbers){
-	int i, r;
+	int i, j, r, unique;
 	for(i=0; i< GAME_LENGTH; i++){
 		r = rand() % FILE_LENGTH;
-		numbers[i] = r;
-
+		unique = 1;
+		for(j = 0; j < i; j++){
+			if(numbers[j] == r){
+				unique = 0;
+			}
+		}
+		if(unique)
+			numbers[i] = r;
+		else
+			i--;
 	}
 
 }
@@ -348,16 +367,10 @@ void sendWordToPlayer(int fd, const char* msg) {
 		error("send");
 }
 void WaitForPlayers(pthread_mutex_t *m1, pthread_mutex_t *m2){
-		while(!stop){
-			if (pthread_mutex_lock(m1) != 0)
-				error("pthread_mutex_lock");
-			if (pthread_mutex_trylock(m2) == EBUSY){
-				pthread_mutex_unlock(m1);
-			}
-			else{
-				break;
-			}
-		}
+		if (pthread_mutex_lock(m2) != 0)
+		    error("pthread_mutex_lock");
+		if (pthread_mutex_lock(m1) != 0)
+			error("pthread_mutex_lock");	
 }
 
 int CheckWord(char* slowo, char* odpowiedz){
